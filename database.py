@@ -58,7 +58,7 @@ class DataBase:
 
         return __tables
     
-    def get_data_from_table(self, table:str, columns:tuple|list = []) -> list[tuple]:
+    def get_data(self, table:str, columns:tuple|list = []) -> list[tuple]:
         """Retorna una lista con todos los datos de `table`, `[]` si está vacía."""
 
         if table not in self.get_tables():
@@ -91,7 +91,7 @@ class DataBase:
 
         return data if data else [()]
     
-    def set_data_to_table(self, table:str, **columns_values) -> None:
+    def set_data(self, table:str, **columns_values) -> None:
         """Agrega nuevos datos a la tabla deseada."""
      
         if table not in self.get_tables():
