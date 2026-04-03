@@ -37,25 +37,6 @@ class DataBase:
             columns_table.append(*column)
 
         return columns_table
-
-    def __get_last_id(self, table:str) -> int:
-        connection = connect(
-            host = self.__host,
-            user = self.__user,
-            password = self.__password,
-            database = self.__db
-        )
-        cursor = connection.cursor()
-        cursor.execute(f"SELECT id FROM {table}")
-        columns = cursor.fetchall()
-        cursor.close()
-
-        ids = []
-
-        for column in columns:
-            ids.append(*column)
-
-        return ids
     
     def get_tables(self) -> list[str]:
         """Obtiene todas las tablas disponibles de la base de datos inicializada."""
@@ -77,7 +58,7 @@ class DataBase:
 
         return __tables
     
-    def get_data_from_table(self, table:str) -> list[tuple]:
+    def get_data_from_table(self, table:str, columns:tuple|list = []) -> list[tuple]:
         """Retorna una lista con todos los datos de `table`, `[]` si está vacía."""
 
         if table not in self.get_tables():
@@ -90,8 +71,22 @@ class DataBase:
             database = self.__db
         )
         cursor = connection.cursor()
-        cursor.execute(f"SELECT * FROM {table}")
-        data = cursor.fetchall()
+        
+        if not len(columns):
+            cursor.execute(f"SELECT * FROM {table}")
+            data = cursor.fetchall()
+        else:
+            if any(column not in self.__get_columns(table) for column in columns):
+                raise ValueError("Columna errónea.")
+            else:
+                cursor.execute(f"SELECT {", ".join(columns)} FROM {table}")
+                if len(columns) == 1:
+                    data = []
+
+                    for dt in cursor.fetchall():
+                        data.append(*dt)
+                else:
+                    data = cursor.fetchall()
         cursor.close()
 
         return data if data else [()]
@@ -129,8 +124,30 @@ class DataBase:
 
         return None
     
-    def clear_table(self, table:str, id:int|None = None) -> None:
-        """Limpia toda la tabla deseada si el `id` es None reiniciando el `id` a 1, si `id` es un entero positivo borra
+    def clear_table(self, table:str) -> None:
+        """Limpia toda la tabla."""
+        if table not in self.get_tables():
+            raise ValueError("Tabla errónea.")
+        
+        connection = connect(
+            host = self.__host,
+            user = self.__user,
+            password = self.__password,
+            database = self.__db
+        )
+
+        cursor = connection.cursor()
+        
+        cursor.execute(f"DELETE FROM {table}")
+        cursor.execute(f"ALTER TABLE {table} AUTO_INCREMENT = 1")
+
+        connection.commit()
+        cursor.close()
+        return None
+    
+    def clear_row(self, table:str, id:int|None = None) -> None:
+        """Limpia la fila especificada.\n
+        Si `id` es None reiniciando el `id` a 1, si `id` es un entero positivo borra
         esa fila.\n
         Nota:
         \tLa tabla seleccionada debe tener una columna id."""
@@ -147,17 +164,95 @@ class DataBase:
             database = self.__db
         )
 
-        last_id = max(self.__get_last_id(table))
         cursor = connection.cursor()
         
         if id is not None:
             cursor.execute(f"DELETE FROM {table} WHERE id = {id}")
-            if id == last_id:
-                cursor.execute(f"ALTER TABLE {table} AUTO_INCREMENT = {id}")
-        else:
-            cursor.execute(f"DELETE FROM {table}")
-            cursor.execute(f"ALTER TABLE {table} AUTO_INCREMENT = 1")
 
         connection.commit()
+        cursor.close()
+        return None
+    
+    def set_id(self, table:str, id:int) -> None:
+
+        if table not in self.get_tables():
+            raise ValueError("Tabla errónea.")
+        if id < 0:
+            raise ValueError("No id's negativos.")
+        
+        connection = connect(
+            host = self.__host,
+            user = self.__user,
+            password = self.__password,
+            database = self.__db
+        )
+
+        cursor = connection.cursor()
+        cursor.execute(f"ALTER TABLE {table} AUTO_INCREMENT = {id}")
+        connection.commit()
+        cursor.close()
+
+        return None
+    
+    def clear_rows(self, table:str, id_range:tuple[int, int]) -> None:
+        """Limpia las filas marcadas por el `id_range` (inicio, fin).\n
+        Nota:
+        \tLa tabla seleccionada debe tener una columna id."""
+        if table not in self.get_tables():
+            raise ValueError("Tabla errónea.")
+        
+        if any(_id < 0 for _id in id_range):
+            raise ValueError("id debe ser positivo.")
+        
+        id_start = id_range[0]
+        id_end = id_range[1]
+
+        if id_start > id_end:
+            raise ValueError("Rango de inicio mayor que el final.")
+        
+        connection = connect(
+            host = self.__host,
+            user = self.__user,
+            password = self.__password,
+            database = self.__db
+        )
+        
+
+        cursor = connection.cursor()
+        
+        cursor.execute(f"DELETE FROM {table} WHERE id BETWEEN {id_start} AND {id_end}")
+        
+        connection.commit()
+        cursor.close()
+        return None
+    
+    def update_data(self, table:str, id:int, **column_newval) -> None:
+        '''Actualiza el dato especificado de acuerdo a su `id`.\n
+        Nota\n
+        \tLa tabla debe tener una columna id.\n
+        \tActualiza una columna a la vez.\0
+        '''
+        connection = connect(
+            host = self.__host,
+            user = self.__user,
+            password = self.__password,
+            database = self.__db
+        )
+
+        column = "".join(column_newval.keys())
+        new_val = list(column_newval.values())[0]
+
+        new_val = "".join(column_newval.values()) if isinstance(new_val, str) else new_val
+
+        val = f"'{new_val}'" if str(new_val).isalpha() else new_val
+
+        cursor = connection.cursor()
+        
+        cursor.execute(f"UPDATE {table}\
+                        SET {column} = {val}\
+                        WHERE id = {id};\
+                        ")
+        connection.commit()
+        
         cursor.close()
         return None
