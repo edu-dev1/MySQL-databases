@@ -15,7 +15,7 @@ db = DataBase(db = "my_database")
 '''---Operations---'''
 print(db.get_tables())
 
-db.set_data_to_table(table = "my_table", 
+db.set_data(table = "my_table", 
                     column1 = value1, column2 = value2)
                     
-print(db.get_data_to_table(table = "my_table", columns = [column1, column2])
+print(db.get_data(table = "my_table", columns = [column1, column2])
